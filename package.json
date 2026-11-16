@@ -1,0 +1,18 @@
+{
+  "name": "kent-marketplace",
+  "version": "1.0.0",
+  "description": "Student marketplace hiring test",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test:smoke": "node scripts/smoke.mjs"
+  },
+  "private": true,
+  "dependencies": {
+    "@supabase/supabase-js": "2.119.0",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  }
+}
