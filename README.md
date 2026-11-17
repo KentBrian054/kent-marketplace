@@ -32,3 +32,14 @@ Public listings are served through a field-filtered Next.js endpoint. Seller con
 Import this project as a Next.js app into Vercel and set the same Supabase variables for Production. Verify the public production URL in a private window. Test creating a listing, refreshing, filtering, opening the listing, sending a message, and confirming persistence in Supabase. Capture screenshots of the marketplace, create form, and message confirmation. Optionally record a short demo. Submit the production URL and screenshots through the hiring form.
 
 See the [Test 3 brief](https://tremendous-tiger-a4a.notion.site/Test-3-Marketplace-22400bbdfc3b805b8b7df94e0daa4f54).
+
+## Test 4 frontend preview
+
+In a separate checkout, run the dev server with `MARKETPLACE_LOCAL_DEMO=1`
+and `NEXT_PUBLIC_STRIPE_UI_PREVIEW=1`. This development-only preview exercises
+seller onboarding, available/unavailable/sold listings, and checkout confirm
+or cancel without calling Stripe or Supabase. Seller state and simulated sold
+status reset on reload. The local sample bicycle is purchasable, the desk lamp is
+not, and the keyboard starts sold. Existing listing and inquiry screens remain
+accessible. Real onboarding, Checkout, platform fees, Supabase order storage,
+and signed webhook processing are backend work and are not wired here.
