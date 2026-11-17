@@ -1,6 +1,7 @@
 'use client';
 import { useCallback,useEffect,useMemo,useState } from 'react';
 import { categories,usd,photoLimit,photoTypes } from '../lib/shared';
+import { paymentsPreview, paymentState, PaymentBadge, PurchasePanel, SellerPayments, OrderPreview } from './payments-preview';
 
 const icons={bag:'M5 8h14l1 13H4L5 8zm4 1V6a3 3 0 0 1 6 0v3',search:'m21 21-4.3-4.3M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',plus:'M12 5v14M5 12h14',arrow:'m14 6-6 6 6 6',photo:'M4 4h16v16H4zM4 17l5-5 3 3 3-4 5 6M8 8h.01',check:'m5 12 4 4L19 6',box:'M3 8l9-5 9 5v9l-9 5-9-5V8zm0 0 9 5 9-5m-9 5v9',pin:'M20 10c0 6-8 11-8 11s-8-5-8-11a8 8 0 1 1 16 0zm-8-2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z'};
 function Icon({name,size=20}) { return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round"><path d={icons[name]}/></svg>; }
@@ -20,6 +21,8 @@ async function json(url,opts) {
 }
 export default function Home() {
   const [view,setView]=useState('#browse'),[list,setList]=useState([]),[local,setLocal]=useState(false),[status,setStatus]=useState('loading'),[error,setError]=useState(''),[search,setSearch]=useState(''),[category,setCategory]=useState('');
+  const [demoConnected,setDemoConnected]=useState(false),[demoSold,setDemoSold]=useState([]);
+  const showPayments=paymentsPreview&&local;
   const go=useCallback(to=>{if(location.hash!==to) history.pushState(null,'',to);setView(to);window.scrollTo(0,0);},[]);
   const load=useCallback(async () => {
     setStatus('loading');setError('');
@@ -33,22 +36,30 @@ export default function Home() {
   },[load]);
   const filtered=useMemo(()=>list.filter(item=>(!category||item.category===category)&&(!search.trim()||[item.title,item.description,item.location,item.category].some(value=>value?.toLowerCase().includes(search.trim().toLowerCase())))),[list,category,search]);
   const detail=view.startsWith('#listing/'), selected=detail? list.find(it=>it.id===view.slice(9)):null;
+  const orderMatch=showPayments&&/^#(checkout|order-success|order-cancel)\/(.+)$/.exec(view);
+  const orderItem=orderMatch?list.find(item=>item.id===orderMatch[2]):null;
+  const orderOutcome=orderMatch?.[1]==='order-success'?'success':orderMatch?.[1]==='order-cancel'?'cancel':null;
+  const validOrder=orderItem&&(orderOutcome==='success'?demoSold.includes(orderItem.id):paymentState(orderItem,demoSold)==='available');
   return <>
     <header className="nav"><div className="wrap nav-inner">
       <AppLink className="brand" to="#browse" go={go}><span className="brand-mark"><Icon name="bag"/></span><span>Campus<span className="brand-accent">Market</span></span></AppLink>
-      <AppLink to="#create" go={go} className="button"><Icon name="plus" size={17}/> Create listing</AppLink>
+      <div className="payment-actions nav-actions">{showPayments&&<AppLink to="#seller-payments" go={go} className="button secondary">Seller payments</AppLink>}
+      <AppLink to="#create" go={go} className="button"><Icon name="plus" size={17}/> Create listing</AppLink></div>
     </div></header>
     <main className="wrap content">
       {local&&<p className="demo-note">Local demo · Uses sample data and local storage, not Supabase.</p>}
-      {view==='#create' ? <><Back go={go}/><Composer onCreated={item=>{setList(previous=>[item,...previous]);go('#listing/'+item.id);}}/></>
-      : detail ? <><Back go={go}/>{selected ? <Details key={selected.id} item={selected}/> : <State status={status} error={error} load={load} empty="This listing is unavailable."/>}</>
+      {showPayments&&<p className="payment-notice">Test 4 preview · Simulated onboarding and checkout. No Stripe or Supabase requests.</p>}
+      {showPayments&&view==='#seller-payments' ? <><Back go={go}/><SellerPayments connected={demoConnected} onConnect={()=>setDemoConnected(true)}/></>
+      : orderMatch ? <><Back go={go}/>{status==='loading'?<p role="status">Loading order preview…</p>:<OrderPreview item={validOrder?orderItem:null} outcome={orderOutcome} onConfirm={()=>{setDemoSold(previous=>[...previous,orderItem.id]);go('#order-success/'+orderItem.id);}} onCancel={()=>go('#order-cancel/'+orderItem.id)} onBack={()=>go('#listing/'+orderItem.id)}/>}</>
+      : view==='#create' ? <><Back go={go}/><Composer onCreated={item=>{setList(previous=>[item,...previous]);go('#listing/'+item.id);}}/></>
+      : detail ? <><Back go={go}/>{selected ? <Details key={selected.id} item={selected} state={showPayments?paymentState(selected,demoSold):null} go={go}/> : <State status={status} error={error} load={load} empty="This listing is unavailable."/>}</>
       : <>
         <section className="hero"><div className="eyebrow">THE STUDENT MARKETPLACE</div><h1>Good finds.<br/>Second lives.</h1><p>Find what you need or pass on what you don’t.</p><div className="hero-icon"><Icon name="bag" size={145}/></div></section>
         <div className="market">
           <aside><h2>Categories</h2><div className="categories">{['',...categories].map(x=><button key={x} className={x===category?'active':''} aria-pressed={x===category} onClick={()=>setCategory(x)}>{x||'All listings'}</button>)}</div></aside>
           <section className="feed" aria-label="Marketplace listings"><div className="feed-head"><div><h2>{category||'Latest listings'}</h2>{status==='ready'&&<p>{filtered.length} {filtered.length===1?'listing':'listings'}</p>}</div><label className="search"><Icon name="search" size={18}/><input type="search" aria-label="Search listings" placeholder="Search listings" value={search} onChange={e=>setSearch(e.target.value)}/></label></div>
           {status!=='ready'||!filtered.length ? <State status={status} error={error} load={load} empty={search||category?'No listings match your filters.':'No listings yet. Be the first to post an item.'}/> :
-            <div className="cards">{filtered.map(item=><AppLink to={'#listing/'+item.id} go={go} className="card" key={item.id}><Visual item={item}/><div className="card-body"><span className="tag">{item.category}</span><h3>{item.title}</h3><strong>{usd(item.price)}</strong><span className="place"><Icon name="pin" size={15}/>{item.location}</span></div></AppLink>)}</div>}
+            <div className="cards">{filtered.map(item=><AppLink to={'#listing/'+item.id} go={go} className="card" key={item.id}><Visual item={item}/><div className="card-body"><span className="tag">{item.category}</span>{showPayments&&<PaymentBadge state={paymentState(item,demoSold)}/>}<h3>{item.title}</h3><strong>{usd(item.price)}</strong><span className="place"><Icon name="pin" size={15}/>{item.location}</span></div></AppLink>)}</div>}
           </section>
         </div>
       </>}
@@ -83,7 +94,7 @@ function Composer({onCreated}) {
     {error&&<p className="alert" role="alert">{error}</p>}<button className="button" disabled={busy} type="submit">{busy?'Publishing…':'Publish listing'}</button>
   </form><section className="panel preview"><h2>Listing preview</h2><Visual item={{...draft,image_url:url}}/><div className="preview-body"><span className="tag">{draft.category||'Category'}</span><h3>{draft.title||'Your item title'}</h3><strong>{draft.price?usd(draft.price):'Price'}</strong><p className="place"><Icon name="pin" size={16}/>{draft.location||'Palo Alto, CA'}</p><p>{draft.description}</p></div></section></div></>;
 }
-function Details({item}) {
+function Details({item,state,go}) {
   const [status,setStatus]=useState(''),[error,setError]=useState('');
   async function submit(e) {
     e.preventDefault();setStatus('sending');setError('');
@@ -92,6 +103,7 @@ function Details({item}) {
     catch(e){setError(e.message);setStatus('');}
   }
   return <div className="split detail"><Visual item={item}/><div className="panel detail-body"><span className="tag">{item.category}</span><h1>{item.title}</h1><strong>{usd(item.price)}</strong><p className="place"><Icon name="pin" size={16}/>{item.location}</p>{item.description&&<p className="description">{item.description}</p>}
+  {state&&<PurchasePanel item={item} state={state} go={go}/>}
   <hr/><h2>Message seller</h2><p className="muted">Ask about availability, pickup, or condition.</p>
   {status==='saved'?<p className="success" role="status"><Icon name="check"/> Your message was saved. This demo does not send an email notification.</p>:<form className="form message" onSubmit={submit}><label>Your email <input type="email" required name="email" maxLength={255} placeholder="you@example.com"/></label><label>Message <textarea name="message" required maxLength={1000} rows={4} placeholder="Hi! Is this still available?"/></label>{error&&<p className="alert" role="alert">{error}</p>}<button className="button" type="submit" disabled={status==='sending'}>{status==='sending'?'Saving…':'Send message'}</button></form>}</div></div>;
 }
